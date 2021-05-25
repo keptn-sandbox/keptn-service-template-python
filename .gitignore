@@ -1,0 +1,12 @@
+# IDE specific folders
+.vscode
+
+# only ignore contents of local .idea
+.idea/*
+# but allow .idea shared run configurations
+!.idea/runConfigurations/
+
+# virtual envs
+venv
+virtualenv
+__pycache__
