@@ -19,8 +19,26 @@ Quick start:
 1. Figure out whether your Kubernetes Deployment requires [any RBAC rules or a different service-account](https://github.com/keptn-sandbox/contributing#rbac-guidelines), and adapt [deploy/service.yaml](deploy/service.yaml) accordingly (initial setup is `serviceAccountName: keptn-default`).
 1. Last but not least: Remove this intro within the README file and make sure the README file properly states what this repository is about
 
-Usage:
+
+# Example Usage
+
+
+## Subscribe to a task
+
 ```python
+def some_task_triggered(keptn: Keptn, shkeptncontext: str, event, data):
+  # do something
+
+
+Keptn.on('some_task.triggered', some_task_triggered)
+```
+
+
+
+## Subscribe to deployment triggered and send out started/finished events
+
+```python
+
 
 
 def deployment_triggered(keptn: Keptn, shkeptncontext: str, event, data):
@@ -46,6 +64,37 @@ if __name__ == "__main__":
     
 ```
 
+## Fetch a file from config-service
+
+```python
+
+def deployment_triggered(keptn: Keptn, shkeptncontext: str, event, data):
+    print("In deployment_triggered:")
+    print("    ", shkeptncontext)
+    print("    ", event)
+    print("    ", data)
+
+    keptn.send_task_started_cloudevent(message="Deployment Started")
+
+    # keptn add-resource --project=XYZ --resource=project-resource.txt
+    project_resource = keptn.get_project_resource('project-resource.txt')
+    print("project_resource=", project_resource)
+
+
+    # keptn add-resource --project=XYZ --stage=STAGE --resource=stage-resource.txt
+    stage_resource = keptn.get_stage_resource('stage-resource.txt')
+    print("stage_resource=", stage_resource)
+
+    # keptn add-resource --project=XYZ --stage=STAGE --service=SERVICE --resource=service-resource.txt
+    service_resource = keptn.get_service_resource('service-resource.txt')
+    print("service_resource=", service_resource)
+
+    # do something with the files
+
+    keptn.send_task_finished_cloudevent(message="Deployment finished")
+
+
+```
 
 ---
 

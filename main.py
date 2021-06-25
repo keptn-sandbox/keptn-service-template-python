@@ -35,7 +35,20 @@ def deployment_triggered(keptn: Keptn, shkeptncontext: str, event, data):
 
     keptn.send_task_started_cloudevent(message="Deployment Started")
 
-    time.sleep(10)
+    # keptn add-resource --project=XYZ --resource=project-resource.txt
+    project_resource = keptn.get_project_resource('project-resource.txt')
+    print("project_resource=", project_resource)
+
+
+    # keptn add-resource --project=XYZ --stage=STAGE --resource=stage-resource.txt
+    stage_resource = keptn.get_stage_resource('stage-resource.txt')
+    print("stage_resource=", stage_resource)
+
+    # keptn add-resource --project=XYZ --stage=STAGE --service=SERVICE --resource=service-resource.txt
+    service_resource = keptn.get_service_resource('service-resource.txt')
+    print("service_resource=", service_resource)
+
+    time.sleep(5)
 
     keptn.send_task_finished_cloudevent(message="Deployment finished")
 

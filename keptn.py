@@ -1,9 +1,11 @@
 import os
+import base64
 import json
 import time
 
 import requests
 from flask import Flask, request
+from requests import api
 from cloudevents.http import from_http, CloudEvent, to_structured
 
 
@@ -117,7 +119,44 @@ class Keptn:
         self._post_cloud_event(body, headers)
 
         return None
+
     
+    def _decode_config_service_response(self, response):
+        if response.status_code >= 200 and response.status_code < 300:
+            # parse content
+            data = response.json()
+            base64ResourcEContent = data['resourceContent']
+
+            return base64.b64decode(data['resourceContent'])
+
+        return None
+
+    def _get_resource_from_config_service(self, resource_name, project, service=None, stage=None):
+        config_service = os.environ["CONFIGURATION_SERVICE"]
+        if project and not service and not stage:
+            # get project resource
+            api_endpoint = f"{config_service}/v1/project/{project}/resource/{resource_name}"
+        elif project and stage and not service:
+            # get stage resource
+            api_endpoint = f"{config_service}/v1/project/{project}/stage/{stage}/resource/{resource_name}"
+        else:
+            # get service resource
+            api_endpoint = f"{config_service}/v1/project/{project}/stage/{stage}/service/{service}/resource/{resource_name}"
+
+        response = requests.get(api_endpoint)
+
+        return self._decode_config_service_response(response)
+
+    def get_project_resource(self, resource_name):
+        return self._get_resource_from_config_service(resource_name, project=self.event_data['project'])
+
+    def get_service_resource(self, resource_name):
+        return self._get_resource_from_config_service(resource_name, project=self.event_data['project'], stage=self.event_data['stage'], service=self.event_data['service'])
+
+    def get_stage_resource(self, resource_name):
+        return self._get_resource_from_config_service(resource_name, project=self.event_data['project'], stage=self.event_data['stage'])
+
+
     def send_task_started_cloudevent(self, data=None, message="", result=RESULT_PASS, status=STATUS_SUCCEEDED):
         return self._send_cloud_event(self.sh_keptn_context, "sh.keptn.event." + self.task_name + ".started", message, result, status, data)
 
@@ -131,6 +170,10 @@ class Keptn:
 
 """
 KeptnUnitTestHelper is a Keptn class specifically for unit testing Keptn integrations
+
+It overwrites
+- _post_cloud_event such that cloudevents are stored in a local list rather than sent out to the network
+- _get_resource_from_config_service such that it fetches files from the local filesystem (test_resources folder)
 """
 class KeptnUnitTestHelper(Keptn):
 
@@ -140,6 +183,20 @@ class KeptnUnitTestHelper(Keptn):
 
     def _post_cloud_event(self, body, headers):
         self.cloud_events_sent.append(from_http(headers, body))
+
+    def _get_resource_from_config_service(self, resource_name, project, service=None, stage=None):
+        if project and not service and not stage:
+            file_name = f'test_resources/{project}/{resource_name}'
+        elif project and stage and not service:
+            file_name = f'test_resources/{project}/{stage}/{resource_name}'
+        else:
+            file_name = f'test_resources/{project}/{stage}/{service}/{resource_name}'
+
+        try:
+            with open(file_name) as f:
+                return str(f.read())
+        except:
+            return None
 
     def load_cloudevent_from_file(filename):
         with open(filename) as json_file:
