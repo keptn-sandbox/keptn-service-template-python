@@ -1,4 +1,5 @@
 import os
+import json
 import time
 
 import requests
@@ -74,6 +75,9 @@ class Keptn:
     def on(keptn_event_type, func):
         Keptn.event_registry[keptn_event_type] = func
 
+    def _post_cloud_event(self, body, headers):
+        resp = requests.post(KEPTN_EVENT_ENDPOINT, data=body, headers=headers)
+        print(resp)
 
     def _send_cloud_event(self, shkeptncontext, cetype, message, result=None, status=None, data=None):
         # Create a CloudEvent
@@ -110,8 +114,8 @@ class Keptn:
         headers, body = to_structured(event)
 
         # POST
-        resp = requests.post(KEPTN_EVENT_ENDPOINT, data=body, headers=headers)
-        print(resp)
+        self._post_cloud_event(body, headers)
+
         return None
     
     def send_task_started_cloudevent(self, data=None, message="", result=RESULT_PASS, status=STATUS_SUCCEEDED):
@@ -122,3 +126,32 @@ class Keptn:
     
     def send_task_status_changed_cloudevent(self, data=None, message="", result=RESULT_PASS, status=STATUS_SUCCEEDED):
         return self._send_cloud_event(self.sh_keptn_context, "sh.keptn.event." + self.task_name + ".status.changed", message, result, status, data)
+
+
+
+"""
+KeptnUnitTestHelper is a Keptn class specifically for unit testing Keptn integrations
+"""
+class KeptnUnitTestHelper(Keptn):
+
+    def __init__(self, event):
+        super().__init__(event)
+        self.cloud_events_sent = []
+
+    def _post_cloud_event(self, body, headers):
+        self.cloud_events_sent.append(from_http(headers, body))
+
+    def load_cloudevent_from_file(filename):
+        with open(filename) as json_file:
+            json_data = str(json_file.read())
+            ce = from_http({}, json_data)
+
+            assert ce.data != None
+
+            assert "shkeptncontext" in ce
+            assert "type" in ce
+            assert ce.data['project'] != None
+            assert ce.data['service'] != None
+            assert ce.data['stage'] != None
+
+            return ce

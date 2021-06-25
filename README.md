@@ -113,6 +113,17 @@ It is recommended to make use of branches as follows:
 
 When writing code, it is recommended to follow the coding style suggested by the [Golang community](https://github.com/golang/go/wiki/CodeReviewComments).
 
+### Using Docker
+
+You can get started developing without installing Python, but using Docker:
+
+```console
+docker build . -t keptn-service-template-python:latest
+docker run --rm -it -v "$(pwd)":"/app" keptn-service-template-python:latest bash
+```
+
+This spawns a new bash within a Python Container.
+
 ### Where to start
 
 If you don't care about the details, your first entrypoint is [eventhandlers.go](eventhandlers.go). Within this file 
