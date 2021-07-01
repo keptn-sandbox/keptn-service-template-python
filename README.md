@@ -167,7 +167,8 @@ When writing code, it is recommended to follow the coding style suggested by the
 1. Install python3 and python3-venv (sometimes also called python3-virtualenv)
 2. Create a virtual python environment: `virtualenv -p python3 venv`
 3. Activate the virtual environment (you need to do this everytime before you start): `source venv/bin/ativate` (Note: the command might be different on Windows)
-4. Run :) `python3 main.py`
+4. Install dependencies: `pip3 install -r requirements.txt`
+5. Run :) `python3 main.py`
 
 Example output:
 ```console
@@ -210,7 +211,7 @@ Polling events for event type deployment.triggered
 
 **ModuleNotFoundError: No module named 'flask'**
 
-You most likely forgot to create or activate the virtual environment
+You most likely forgot to create or activate the virtual environment or install dependencies.
 
 
 
