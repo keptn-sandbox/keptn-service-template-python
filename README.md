@@ -155,12 +155,64 @@ Development can be conducted using any GoLang compatible IDE/editor (e.g., Jetbr
 
 It is recommended to make use of branches as follows:
 
-* `master` contains the latest potentially unstable version
+* `master`/`main` contains the latest potentially unstable version
 * `release-*` contains a stable version of the service (e.g., `release-0.1.0` contains version 0.1.0)
 * create a new branch for any changes that you are working on, e.g., `feature/my-cool-stuff` or `bug/overflow`
 * once ready, create a pull request from that branch back to the `master` branch
 
 When writing code, it is recommended to follow the coding style suggested by the [Golang community](https://github.com/golang/go/wiki/CodeReviewComments).
+
+### Locally using Python
+
+1. Install python3 and python3-venv (sometimes also called python3-virtualenv)
+2. Create a virtual python environment: `virtualenv -p python3 venv`
+3. Activate the virtual environment (you need to do this everytime before you start): `source venv/bin/ativate` (Note: the command might be different on Windows)
+4. Run :) `python3 main.py`
+
+Example output:
+```console
+$ python3 main.py
+
+Subscribing to deployment.triggered
+Running on port 8080 on path /
+ * Serving Flask app 'main' (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://127.0.0.1:8080/ (Press CTRL+C to quit)
+```
+
+Note: This program is capable of running without the Keptn distributor. For this to work, you need to provide two environment variables:
+
+```console
+export KEPTN_ENDPOINT=http://1.2.3.4.nip.io/api
+export KEPTN_API_TOKEN=<...>
+```
+See https://keptn.sh/docs/0.8.x/reference/cli/#authenticate-keptn-cli on how to get those.
+
+Example output:
+```console
+$ python3 main.py
+
+Subscribing to deployment.triggered
+Found environment variables KEPTN_ENDPOINT and KEPTN_API_TOKEN, polling events from API
+Starting to poll...
+Exit using CTRL-C
+
+Polling events for event type deployment.triggered
+Polling events for event type deployment.triggered
+Polling events for event type deployment.triggered
+...
+```
+
+#### Common problems
+
+**ModuleNotFoundError: No module named 'flask'**
+
+You most likely forgot to create or activate the virtual environment
+
+
 
 ### Using Docker
 
@@ -175,20 +227,14 @@ This spawns a new bash within a Python Container.
 
 ### Where to start
 
-If you don't care about the details, your first entrypoint is [eventhandlers.go](eventhandlers.go). Within this file 
- you can add implementation for pre-defined Keptn Cloud events.
+Your first entrypoint is [main.py](main.py). Within this file 
+ you can add implementation for Keptn Cloud events.
  
 To better understand all variants of Keptn CloudEvents, please look at the [Keptn Spec](https://github.com/keptn/spec).
  
-If you want to get more insights into processing those CloudEvents or even defining your own CloudEvents in code, please 
- look into [main.go](main.go) (specifically `processKeptnCloudEvent`), [deploy/service.yaml](deploy/service.yaml),
- consult the [Keptn docs](https://keptn.sh/docs/) as well as existing [Keptn Core](https://github.com/keptn/keptn) and
- [Keptn Contrib](https://github.com/keptn-contrib/) services.
 
 ### Common tasks
 
-* Build the binary: `go build -ldflags '-linkmode=external' -v -o keptn-service-template-python`
-* Run tests: `go test -race -v ./...`
 * Build the docker image: `docker build . -t keptnsandbox/keptn-service-template-python:dev` (Note: Ensure that you use the correct DockerHub account/organization)
 * Run the docker image locally: `docker run --rm -it -p 8080:8080 keptnsandbox/keptn-service-template-python:dev`
 * Push the docker image to DockerHub: `docker push keptnsandbox/keptn-service-template-python:dev` (Note: Ensure that you use the correct DockerHub account/organization)

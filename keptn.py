@@ -1,17 +1,27 @@
-import os
+import sys
 import base64
 import json
 import time
-
+import threading
 import requests
-from flask import Flask, request
-from requests import api
+
 from cloudevents.http import from_http, CloudEvent, to_structured
 
 
 SERVICENAME = "keptn-service-template-python"
 
-KEPTN_EVENT_ENDPOINT = "http://127.0.0.1:8081/event"
+KEPTN_DISTRIBUTOR = "http://127.0.0.1:8081"
+KEPTN_API_EVENT_ENDPOINT = "/event" # will be set to /v1/event in case of authenticated handler
+KEPTN_API_TRIGGERED_URL = "/controlPlane/v1/event/triggered/sh.keptn.event.{event_type}"
+KEPTN_API_METADATA_URL = "/v1/metadata"
+
+POLLING_TIME_SECONDS = 10
+
+HTTP_DEFAULT_HEADERS = {
+    'user-agent': "keptn-service-template-go",
+    'accept': "application/json; charset=utf-8",
+    'Content-Type': "application/json; charset=utf-8"            
+}
 
 STATUS_SUCCEEDED = "succeeded"
 STATUS_ERRORED = "errored"
@@ -26,9 +36,64 @@ RESULT_FAIL = "fail"
 ALLOWED_RESULTS = [RESULT_PASS, RESULT_WARNING, RESULT_FAIL]
 
 
+
+class KeptnApiConnection:
+    def get(url, headers=None):
+        raise NotImplementedError
+    
+    def post(url, data=None, headers=None):
+        raise NotImplementedError
+
+class KeptnDistributorApiConnection(KeptnApiConnection):
+    def get(url, headers=None):
+        if headers is None:
+            headers = {}
+        headers = {**HTTP_DEFAULT_HEADERS, **headers}
+        return requests.get(KEPTN_DISTRIBUTOR + url, headers=headers)
+
+    def post(url, data=None, headers=None):
+        if headers is None:
+            headers = {}
+        headers = {**HTTP_DEFAULT_HEADERS, **headers}
+        return requests.post(KEPTN_DISTRIBUTOR + url, headers=headers, data=data)
+
+class KeptnAuthenticatedApiConnection(KeptnApiConnection):
+    keptn_api_endpoint = ""
+    keptn_api_token = ""
+
+    def get(url, headers=None):
+        if headers is None:
+            headers = {}
+        headers = {**HTTP_DEFAULT_HEADERS, **headers, 'x-token': KeptnAuthenticatedApiConnection.keptn_api_token,}
+
+        response = requests.get(KeptnAuthenticatedApiConnection.keptn_api_endpoint + url, headers=headers)
+
+        if response.status_code >= 400:
+            print("ERROR {}: {}".format(response.status_code, KeptnAuthenticatedApiConnection.keptn_api_endpoint + url))
+
+        return response
+
+    def post(url, data=None, headers=None):
+        if headers is None:
+            headers = {}
+        
+        headers = {**HTTP_DEFAULT_HEADERS, **headers, 'x-token': KeptnAuthenticatedApiConnection.keptn_api_token,}
+
+        response = requests.post(KeptnAuthenticatedApiConnection.keptn_api_endpoint + url, headers=headers, data=data)
+
+        if response.status_code >= 400:
+            print("ERROR {}: {}".format(response.status_code, KeptnAuthenticatedApiConnection.keptn_api_endpoint + url))
+
+        return response
+
+
+KEPTN_API = KeptnDistributorApiConnection # will be overwritten below if certain environment variables are set
+
+
 class Keptn:
 
     event_registry = {}
+    api = KeptnDistributorApiConnection
 
     def __init__(self, event):
         self.sh_keptn_context = None
@@ -75,11 +140,11 @@ class Keptn:
 
 
     def on(keptn_event_type, func):
+        print(f"Subscribing to {keptn_event_type}")
         Keptn.event_registry[keptn_event_type] = func
 
     def _post_cloud_event(self, body, headers):
-        resp = requests.post(KEPTN_EVENT_ENDPOINT, data=body, headers=headers)
-        print(resp)
+        resp = KEPTN_API.post(KEPTN_API_EVENT_ENDPOINT, body, headers)
 
     def _send_cloud_event(self, shkeptncontext, cetype, message, result=None, status=None, data=None):
         # Create a CloudEvent
@@ -132,18 +197,18 @@ class Keptn:
         return None
 
     def _get_resource_from_config_service(self, resource_name, project, service=None, stage=None):
-        config_service = os.environ["CONFIGURATION_SERVICE"]
+
         if project and not service and not stage:
             # get project resource
-            api_endpoint = f"{config_service}/v1/project/{project}/resource/{resource_name}"
+            api_endpoint = f"/configuration-service/v1/project/{project}/resource/{resource_name}"
         elif project and stage and not service:
             # get stage resource
-            api_endpoint = f"{config_service}/v1/project/{project}/stage/{stage}/resource/{resource_name}"
+            api_endpoint = f"/configuration-service/v1/project/{project}/stage/{stage}/resource/{resource_name}"
         else:
             # get service resource
-            api_endpoint = f"{config_service}/v1/project/{project}/stage/{stage}/service/{service}/resource/{resource_name}"
+            api_endpoint = f"/configuration-service/v1/project/{project}/stage/{stage}/service/{service}/resource/{resource_name}"
 
-        response = requests.get(api_endpoint)
+        response = KEPTN_API.get(api_endpoint)
 
         return self._decode_config_service_response(response)
 
@@ -166,6 +231,58 @@ class Keptn:
     def send_task_status_changed_cloudevent(self, data=None, message="", result=RESULT_PASS, status=STATUS_SUCCEEDED):
         return self._send_cloud_event(self.sh_keptn_context, "sh.keptn.event." + self.task_name + ".status.changed", message, result, status, data)
 
+
+
+
+class StandaloneKeptn(Keptn):
+    event_id_cache = []
+
+    def poll():
+        while True:
+            for event_type in Keptn.event_registry:
+                print("Polling events for event type " + event_type)
+                response = KEPTN_API.get(KEPTN_API_TRIGGERED_URL.format(
+                    event_type=event_type
+                ))
+
+                if response.status_code != 200:
+                    print("ERROR: Failed to fetch CloudEvents of type " + event_type)
+                    continue
+                
+                data = json.loads(response.content)
+
+                if "totalCount" in data:
+                    print("- Received {totalCount} CloudEvents".format(totalCount=data["totalCount"]))
+
+                    if "events" in data:
+                        cloud_events = data["events"]
+
+                        for ce_json in cloud_events:
+                            # convert json to cloudevent
+                            ce = CloudEvent(ce_json, ce_json["data"])
+                            assert ce.data != None
+
+                            assert "shkeptncontext" in ce
+                            assert "type" in ce
+                            assert ce.data['project'] != None
+                            assert ce.data['service'] != None
+                            assert ce.data['stage'] != None
+
+                            # verify CloudEvent has not been processed yet
+                            if ce['id'] not in StandaloneKeptn.event_id_cache:
+                                StandaloneKeptn.event_id_cache.append(ce['id'])
+                                # create a new keptn instance and let it handle the event
+                                keptn = StandaloneKeptn(ce)
+                                handle_thread = threading.Thread(target=keptn.handle_cloud_event)
+                                handle_thread.start()
+                            else:
+                                print(" - Skipping cloudevent with id {id} as it was already processed before".format(id=ce['id']))
+
+            try:
+                time.sleep(POLLING_TIME_SECONDS)
+            except KeyboardInterrupt:
+                return        
+        
 
 
 """
@@ -212,3 +329,30 @@ class KeptnUnitTestHelper(Keptn):
             assert ce.data['stage'] != None
 
             return ce
+
+
+
+def start_polling(keptn_api_endpoint, keptn_api_token):
+    global KEPTN_API, KEPTN_API_EVENT_ENDPOINT
+
+    # configure KEPTN_API to use the authenticated api connection
+    KEPTN_API = KeptnAuthenticatedApiConnection
+    KeptnAuthenticatedApiConnection.keptn_api_endpoint = keptn_api_endpoint
+    KeptnAuthenticatedApiConnection.keptn_api_token = keptn_api_token
+
+    # check if connection works
+    response = KEPTN_API.get(KEPTN_API_METADATA_URL)
+
+    if response.status_code != 200:
+        print("Error: Could not reach API")
+        print(response.content)
+        return None
+
+    # rewrite event endpoint, as /event only exists on distributor, but needs to be /v1/event for the real api
+    KEPTN_API_EVENT_ENDPOINT = "/v1/event"
+    
+    print("Starting to poll...")
+    x = threading.Thread(target=StandaloneKeptn.poll)
+    x.start()
+
+    return x

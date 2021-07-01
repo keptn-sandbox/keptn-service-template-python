@@ -1,12 +1,12 @@
-# from https://github.com/cloudevents/sdk-python/blob/master/samples/http-json-cloudevents/json_sample_server.py
 import os
+import sys
 import time
 
 import requests
 from flask import Flask, request
 from cloudevents.http import from_http, CloudEvent, to_structured
 
-from keptn import Keptn
+from keptn import Keptn, start_polling
 
 app = Flask(__name__)
 
@@ -53,12 +53,29 @@ def deployment_triggered(keptn: Keptn, shkeptncontext: str, event, data):
     keptn.send_task_finished_cloudevent(message="Deployment finished")
 
 
+# register handler
+Keptn.on('deployment.triggered', deployment_triggered)
 
 if __name__ == "__main__":
+    if "KEPTN_API_TOKEN" in os.environ and "KEPTN_ENDPOINT" in os.environ and os.environ["KEPTN_API_TOKEN"] and os.environ["KEPTN_ENDPOINT"]:
+        print("Found environment variables KEPTN_ENDPOINT and KEPTN_API_TOKEN, polling events from API")
+        thread = start_polling(os.environ["KEPTN_ENDPOINT"], os.environ["KEPTN_API_TOKEN"])
 
-    Keptn.on('deployment.triggered', deployment_triggered)
+        if not thread:
+            print("ERROR: Failed to start polling thread, exiting")
+            sys.exit(1)
 
-    print("Running on port", PORT, "on path", PATH)
-    app.run(port=PORT)
-    
+        print("Exit using CTRL-C")
 
+        # wait til exit (e.g., using CTRL C)
+        while True:
+            try:
+                time.sleep(0.5)
+            except KeyboardInterrupt:
+                print("Exiting...")
+                sys.exit(0)
+
+    else:
+        # run flask app with HTTP endpoint
+        print("Running on port", PORT, "on path", PATH)
+        app.run(port=PORT)
