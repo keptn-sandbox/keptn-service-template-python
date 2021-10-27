@@ -78,4 +78,4 @@ if __name__ == "__main__":
     else:
         # run flask app with HTTP endpoint
         print("Running on port", PORT, "on path", PATH)
-        app.run(port=PORT)
+        app.run(host='0.0.0.0', port=PORT)
