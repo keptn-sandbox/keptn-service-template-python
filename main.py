@@ -68,9 +68,9 @@ if __name__ == "__main__":
         print("Exit using CTRL-C")
 
         # wait til exit (e.g., using CTRL C)
-        while True:
+        while thread.is_alive():
             try:
-                time.sleep(0.5)
+                thread.join(0.5)
             except KeyboardInterrupt:
                 print("Exiting...")
                 sys.exit(0)

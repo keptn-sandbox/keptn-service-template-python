@@ -352,7 +352,7 @@ def start_polling(keptn_api_endpoint, keptn_api_token):
     KEPTN_API_EVENT_ENDPOINT = "/v1/event"
     
     print("Starting to poll...")
-    x = threading.Thread(target=StandaloneKeptn.poll)
+    x = threading.Thread(target=StandaloneKeptn.poll, daemon=True)
     x.start()
 
     return x
