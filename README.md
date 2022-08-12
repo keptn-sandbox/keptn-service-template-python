@@ -1,6 +1,8 @@
 # README
 
-This is a Keptn Service Template written in GoLang. Follow the instructions below for writing your own Keptn integration.
+## :warning: This service is currently not maintained - please reach out to the Keptn community via https://slack.keptn.sh if you want to take ownership of this repository and update it to make it work with the latest version of Keptn :warning:
+
+This is a POC of a Keptn Service Template written in Python. Follow the instructions below for writing your own Keptn integration.
 
 Quick start:
 
